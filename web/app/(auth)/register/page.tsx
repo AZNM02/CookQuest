@@ -19,25 +19,38 @@ export default function RegisterPage() {
     setError("");
     setLoading(true);
 
-    const supabase = createClient();
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { username } },
-    });
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { username } },
+      });
 
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-      return;
-    }
+      if (error) {
+        console.error("[CookQuest] Supabase signUp error:", {
+          message: error.message,
+          status: (error as { status?: number }).status,
+          name: error.name,
+          full: JSON.stringify(error),
+        });
+        setError(`Error: "${error.message}" (status: ${(error as { status?: number }).status ?? "none"}, name: ${error.name})`);
+        setLoading(false);
+        return;
+      }
 
-    // If email confirmation is enabled, session will be null until confirmed
-    if (data.session) {
-      router.push("/dashboard");
-      router.refresh();
-    } else {
-      setCheckEmail(true);
+      console.log("[CookQuest] signUp response:", { user: data.user?.id, hasSession: !!data.session });
+
+      // If email confirmation is enabled, session will be null until confirmed
+      if (data.session) {
+        router.push("/dashboard");
+        router.refresh();
+      } else {
+        setCheckEmail(true);
+        setLoading(false);
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Unexpected error — check the browser console.");
       setLoading(false);
     }
   }

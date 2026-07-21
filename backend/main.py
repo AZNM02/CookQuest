@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import get_client
-from routers import auth, profile, sessions
+from routers import auth, profile, sessions, techniques, stats
 
 
 @asynccontextmanager
@@ -24,6 +24,8 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(profile.router)
 app.include_router(sessions.router)
+app.include_router(techniques.router)
+app.include_router(stats.router)
 
 
 @app.get("/health", tags=["meta"])

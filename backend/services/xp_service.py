@@ -27,3 +27,8 @@ def calculate_xp(
 
 def get_level_from_xp(xp: int) -> int:
     return max(1, int(1 + math.sqrt(xp / 250)))
+
+
+def get_xp_for_level(level: int) -> int:
+    """Minimum XP required to reach this level."""
+    return 250 * (level - 1) ** 2
