@@ -28,18 +28,10 @@ export default function RegisterPage() {
       });
 
       if (error) {
-        console.error("[CookQuest] Supabase signUp error:", {
-          message: error.message,
-          status: (error as { status?: number }).status,
-          name: error.name,
-          full: JSON.stringify(error),
-        });
-        setError(`Error: "${error.message}" (status: ${(error as { status?: number }).status ?? "none"}, name: ${error.name})`);
+        setError(error.message);
         setLoading(false);
         return;
       }
-
-      console.log("[CookQuest] signUp response:", { user: data.user?.id, hasSession: !!data.session });
 
       // If email confirmation is enabled, session will be null until confirmed
       if (data.session) {
