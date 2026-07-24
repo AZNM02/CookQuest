@@ -23,11 +23,19 @@ type FormData = {
   notes: string;
 };
 
+type BadgeInfo = {
+  name: string;
+  icon: string;
+  description: string;
+};
+
 type LogResult = {
   xp_earned: number;
   new_total_xp: number;
   new_level: number;
   leveled_up: boolean;
+  streak_count: number;
+  new_badges: BadgeInfo[];
 };
 
 const CUISINES = [
@@ -177,6 +185,27 @@ export default function LogForm({ token }: { token: string }) {
             <p className="text-sm text-purple-600 font-semibold mb-4 bg-purple-50 rounded-lg px-4 py-2">
               ⭐ Level up! You are now Level {result.new_level}
             </p>
+          )}
+          {result.streak_count > 1 && (
+            <p className="text-sm text-orange-600 font-semibold mb-4 bg-orange-50 rounded-lg px-4 py-2">
+              🔥 {result.streak_count}-day streak!
+            </p>
+          )}
+          {result.new_badges.length > 0 && (
+            <div className="mb-4 space-y-2">
+              {result.new_badges.map((b) => (
+                <div
+                  key={b.name}
+                  className="flex items-center gap-3 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 text-left"
+                >
+                  <span className="text-2xl">{b.icon}</span>
+                  <div>
+                    <p className="text-sm font-semibold text-yellow-800">{b.name}</p>
+                    <p className="text-xs text-yellow-600">{b.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
           <p className="text-sm text-gray-500 mb-8">
             Total XP: {result.new_total_xp.toLocaleString()}

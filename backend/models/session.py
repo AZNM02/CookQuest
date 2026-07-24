@@ -42,9 +42,17 @@ class SessionResponse(BaseModel):
     technique_ids: list[int] = Field(default_factory=list)
 
 
+class BadgeInfo(BaseModel):
+    name: str
+    icon: str
+    description: str
+
+
 class SessionLogResponse(BaseModel):
     session: SessionResponse
     xp_earned: int
     new_total_xp: int
     new_level: int
     leveled_up: bool
+    streak_count: int = 0
+    new_badges: list[BadgeInfo] = Field(default_factory=list)
