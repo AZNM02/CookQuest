@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_service_role_key: str
     secret_key: str
+    anthropic_api_key: str
 
 
 settings = Settings()
