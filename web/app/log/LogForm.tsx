@@ -157,7 +157,7 @@ export default function LogForm({ token }: { token: string }) {
         notes: form.notes || null,
       };
 
-      const res = await apiRequest<{ xp_earned: number; new_total_xp: number; new_level: number; leveled_up: boolean }>(
+      const res = await apiRequest<LogResult>(
         "/sessions/log",
         { method: "POST", body: JSON.stringify(body), token }
       );
