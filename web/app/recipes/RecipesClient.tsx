@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type Recipe = {
   id: number;
@@ -151,12 +154,43 @@ function RecipeCard({
 export default function RecipesClient({
   recipes,
   recommendations,
+  token,
 }: {
   recipes: Recipe[];
   recommendations: RecommendedRecipe[];
+  token: string;
 }) {
+  const router = useRouter();
   const [cuisineFilter, setCuisineFilter] = useState("");
   const [difficultyFilter, setDifficultyFilter] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState("");
+
+  async function handleImport() {
+    setImporting(true);
+    setImportMsg("");
+    try {
+      const res = await fetch(`${API_URL}/recipes/import`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setImportMsg(
+          data.imported > 0
+            ? `Added ${data.imported} new recipes!`
+            : `All fetched recipes are already in your library — try again for more.`
+        );
+        if (data.imported > 0) router.refresh();
+      } else {
+        setImportMsg("Import failed — is the backend running?");
+      }
+    } catch {
+      setImportMsg("Import failed — is the backend running?");
+    } finally {
+      setImporting(false);
+    }
+  }
 
   const recIds = new Set(recommendations.map((r) => r.id));
   const recMap = new Map(recommendations.map((r) => [r.id, r]));
@@ -199,7 +233,14 @@ export default function RecipesClient({
             All Recipes{" "}
             <span className="text-gray-400 font-normal text-sm">({filtered.length})</span>
           </h2>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center flex-wrap">
+            <button
+              onClick={handleImport}
+              disabled={importing}
+              className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50 transition-colors"
+            >
+              {importing ? "Importing…" : "✦ Discover more"}
+            </button>
             <select
               value={cuisineFilter}
               onChange={(e) => setCuisineFilter(e.target.value)}
@@ -222,6 +263,12 @@ export default function RecipesClient({
             </select>
           </div>
         </div>
+
+        {importMsg && (
+          <p className="text-sm text-orange-600 bg-orange-50 rounded-lg px-3 py-2 mb-4">
+            {importMsg}
+          </p>
+        )}
 
         {filtered.length === 0 ? (
           <p className="text-sm text-gray-400">No recipes match your filters.</p>

@@ -44,7 +44,7 @@ export default async function RecipesPage() {
             Personalised picks and a full recipe library.
           </p>
         </div>
-        <RecipesClient recipes={recipes} recommendations={recommendations} />
+        <RecipesClient recipes={recipes} recommendations={recommendations} token={token} />
       </div>
     </AppShell>
   );
