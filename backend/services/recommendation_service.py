@@ -70,17 +70,20 @@ async def recommend_recipes(client, user_id: str, limit: int = 5) -> list[dict]:
     for row in rt_resp.data or []:
         recipe_techs.setdefault(row["recipe_id"], []).append(row["technique_id"])
 
-    # Fetch technique names for weak techniques
-    if weak_ids:
+    # Fetch names for ALL techniques that appear in these recipes
+    all_required_ids: set[int] = set()
+    for tids in recipe_techs.values():
+        all_required_ids.update(tids)
+
+    all_names: dict[int, str] = {}
+    if all_required_ids:
         names_resp = await (
             client.table("techniques")
             .select("id, name")
-            .in_("id", list(weak_ids))
+            .in_("id", list(all_required_ids))
             .execute()
         )
-        weak_names = {r["id"]: r["name"] for r in (names_resp.data or [])}
-    else:
-        weak_names = {}
+        all_names = {r["id"]: r["name"] for r in (names_resp.data or [])}
 
     # Score each recipe
     scored = []
@@ -91,7 +94,8 @@ async def recommend_recipes(client, user_id: str, limit: int = 5) -> list[dict]:
         scored.append({
             **recipe,
             "gap_score": gap_score,
-            "weak_techniques_targeted": [weak_names[tid] for tid in targeted_weak if tid in weak_names],
+            "technique_names": [all_names[tid] for tid in required if tid in all_names],
+            "weak_techniques_targeted": [all_names[tid] for tid in targeted_weak if tid in all_names],
             "technique_ids": required,
         })
 
