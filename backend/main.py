@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import get_client
-from routers import auth, profile, sessions, techniques, stats, ai_coach, recipes
+from routers import auth, profile, sessions, techniques, stats, ai_coach, recipes, recommendations
 
 
 @asynccontextmanager
@@ -28,6 +28,7 @@ app.include_router(techniques.router)
 app.include_router(stats.router)
 app.include_router(ai_coach.router)
 app.include_router(recipes.router)
+app.include_router(recommendations.router)
 
 
 @app.get("/health", tags=["meta"])
