@@ -24,7 +24,6 @@ AREA_TO_CUISINE: dict[str, str] = {
     "tunisian": "middle_eastern", "turkish": "middle_eastern",
 }
 
-# Maps our technique names to keywords to search for in instructions
 TECHNIQUE_KEYWORDS: dict[str, list[str]] = {
     "Dice":                        ["diced", " dice "],
     "Julienne":                    ["julienne"],
@@ -83,21 +82,17 @@ class RecipeResponse(BaseModel):
     description: Optional[str] = None
     instructions: Optional[str] = None
     technique_names: list[str] = []
+    is_favorited: bool = False
 
 
-@router.get("", response_model=list[RecipeResponse])
-async def get_recipes(
-    cuisine_type: Optional[str] = None,
-    difficulty: Optional[str] = None,
-):
-    client = await get_client()
-    query = client.table("recipes").select("*").order("name")
-    if cuisine_type:
-        query = query.eq("cuisine_type", cuisine_type)
-    if difficulty:
-        query = query.eq("difficulty", difficulty)
-    resp = await query.execute()
-    recipes = resp.data or []
+class RecipeListResponse(BaseModel):
+    recipes: list[RecipeResponse]
+    total: int
+
+
+async def _attach_techniques_and_favorites(
+    client, recipes: list[dict], fav_ids: set[int]
+) -> list[RecipeResponse]:
     if not recipes:
         return []
 
@@ -132,9 +127,75 @@ async def get_recipes(
                 for tid in recipe_tech_ids.get(r["id"], [])
                 if tid in tech_names
             ],
+            is_favorited=r["id"] in fav_ids,
         )
         for r in recipes
     ]
+
+
+@router.get("", response_model=RecipeListResponse)
+async def get_recipes(
+    cuisine_type: Optional[str] = None,
+    difficulty: Optional[str] = None,
+    search: Optional[str] = None,
+    favorites_only: bool = False,
+    limit: int = 12,
+    offset: int = 0,
+    user_id: str = Depends(get_current_user),
+):
+    client = await get_client()
+
+    fav_resp = await (
+        client.table("user_recipe_favorites")
+        .select("recipe_id")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    fav_ids = {r["recipe_id"] for r in (fav_resp.data or [])}
+
+    if favorites_only and not fav_ids:
+        return RecipeListResponse(recipes=[], total=0)
+
+    query = client.table("recipes").select("*", count="exact").order("name")
+    if cuisine_type:
+        query = query.eq("cuisine_type", cuisine_type)
+    if difficulty:
+        query = query.eq("difficulty", difficulty)
+    if search:
+        query = query.ilike("name", f"%{search}%")
+    if favorites_only:
+        query = query.in_("id", list(fav_ids))
+
+    resp = await query.range(offset, offset + limit - 1).execute()
+    recipes = resp.data or []
+    total = resp.count or 0
+
+    return RecipeListResponse(
+        recipes=await _attach_techniques_and_favorites(client, recipes, fav_ids),
+        total=total,
+    )
+
+
+@router.post("/{recipe_id}/favorite", status_code=204)
+async def favorite_recipe(recipe_id: int, user_id: str = Depends(get_current_user)):
+    client = await get_client()
+    await (
+        client.table("user_recipe_favorites")
+        .upsert({"user_id": user_id, "recipe_id": recipe_id}, on_conflict="user_id,recipe_id")
+        .execute()
+    )
+
+
+@router.delete("/{recipe_id}/favorite", status_code=204)
+async def unfavorite_recipe(recipe_id: int, user_id: str = Depends(get_current_user)):
+    client = await get_client()
+    await (
+        client.table("user_recipe_favorites")
+        .delete()
+        .eq("user_id", user_id)
+        .eq("recipe_id", recipe_id)
+        .execute()
+    )
 
 
 @router.post("/import")
@@ -142,14 +203,9 @@ async def import_recipes(
     count: int = 10,
     user_id: str = Depends(get_current_user),
 ):
-    """
-    Fetch `count` random recipes from TheMealDB and import new ones.
-    Uses /random.php which always returns a real recipe with full data.
-    """
     db = await get_client()
 
     async with httpx.AsyncClient(timeout=20) as http:
-        # Fetch all at once concurrently
         responses = await asyncio.gather(
             *[http.get(f"{THEMEALDB}/random.php") for _ in range(count)],
             return_exceptions=True,
@@ -179,12 +235,10 @@ async def import_recipes(
         if not name or not instructions:
             continue
 
-        # Skip if already in DB
         existing = await db.table("recipes").select("id").eq("name", name).execute()
         if existing.data:
             continue
 
-        # Ingredients
         ingredients = []
         for i in range(1, 21):
             ing = (meal.get(f"strIngredient{i}") or "").strip()

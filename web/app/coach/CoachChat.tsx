@@ -10,6 +10,115 @@ type Mode = "precook" | "chat" | "debrief";
 
 type Recipe = { id: number; name: string; description: string | null; instructions: string | null };
 
+// ── Searchable recipe picker ──────────────────────────────────────────────────
+function RecipePicker({
+  token,
+  value,
+  onChange,
+  placeholder = "Search for a recipe…",
+  allowNone = false,
+}: {
+  token: string;
+  value: Recipe | null;
+  onChange: (recipe: Recipe | null) => void;
+  placeholder?: string;
+  allowNone?: boolean;
+}) {
+  const [inputVal, setInputVal] = useState(value?.name ?? "");
+  const [results, setResults] = useState<Recipe[]>([]);
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Sync input when value is cleared externally
+  useEffect(() => {
+    if (!value) setInputVal("");
+  }, [value]);
+
+  // Fetch with debounce; 0ms delay when input is empty (initial open)
+  useEffect(() => {
+    if (!open) return;
+    const delay = inputVal.trim() ? 300 : 0;
+    const t = setTimeout(async () => {
+      const params = new URLSearchParams({ limit: "20" });
+      if (inputVal.trim()) params.set("search", inputVal.trim());
+      const res = await fetch(`${API_URL}/recipes?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setResults(data.recipes ?? []);
+      }
+    }, delay);
+    return () => clearTimeout(t);
+  }, [inputVal, open, token]);
+
+  // Close on outside click, resetting input to the current selection
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+        setInputVal(value?.name ?? "");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [value]);
+
+  function handleSelect(recipe: Recipe | null) {
+    onChange(recipe);
+    setInputVal(recipe?.name ?? "");
+    setOpen(false);
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <input
+        type="text"
+        value={inputVal}
+        onChange={(e) => {
+          setInputVal(e.target.value);
+          if (value) onChange(null);
+        }}
+        onFocus={() => setOpen(true)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+      />
+      {open && (
+        <div className="absolute z-20 w-full mt-1 max-h-60 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+          {allowNone && (
+            <button
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(null); }}
+              className="w-full text-left px-3 py-2 text-sm text-gray-400 italic hover:bg-gray-50 transition-colors"
+            >
+              No specific recipe (general Q&amp;A)
+            </button>
+          )}
+          {results.length === 0 ? (
+            <p className="px-3 py-2.5 text-xs text-gray-400">
+              {inputVal.trim() ? `No recipes found for "${inputVal}".` : "No recipes yet."}
+            </p>
+          ) : (
+            results.map((r) => (
+              <button
+                key={r.id}
+                onMouseDown={(e) => { e.preventDefault(); handleSelect(r); }}
+                className={cn(
+                  "w-full text-left px-3 py-2 text-sm transition-colors hover:bg-orange-50 hover:text-orange-700",
+                  value?.id === r.id
+                    ? "bg-orange-50 text-orange-700 font-medium"
+                    : "text-gray-700"
+                )}
+              >
+                {r.name}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 async function streamRequest(
   path: string,
   body: object,
@@ -56,7 +165,7 @@ async function streamRequest(
 }
 
 // ── Pre-Cook tab ──────────────────────────────────────────────────────────────
-function PreCookTab({ token, recipes }: { token: string; recipes: Recipe[] }) {
+function PreCookTab({ token }: { token: string }) {
   const [selected, setSelected] = useState<Recipe | null>(null);
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
@@ -91,20 +200,12 @@ function PreCookTab({ token, recipes }: { token: string; recipes: Recipe[] }) {
         <label className="block text-sm font-medium text-gray-700 mb-1.5">
           Choose a recipe
         </label>
-        <select
-          value={selected?.id ?? ""}
-          onChange={(e) => {
-            const r = recipes.find((r) => r.id === Number(e.target.value));
-            setSelected(r ?? null);
-            setResponse("");
-          }}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-        >
-          <option value="">Select a recipe…</option>
-          {recipes.map((r) => (
-            <option key={r.id} value={r.id}>{r.name}</option>
-          ))}
-        </select>
+        <RecipePicker
+          token={token}
+          value={selected}
+          onChange={(r) => { setSelected(r); setResponse(""); }}
+          placeholder="Search for a recipe…"
+        />
       </div>
       <button
         onClick={handleStart}
@@ -125,8 +226,8 @@ function PreCookTab({ token, recipes }: { token: string; recipes: Recipe[] }) {
 }
 
 // ── Mid-Cook chat tab ─────────────────────────────────────────────────────────
-function ChatTab({ token, recipes }: { token: string; recipes: Recipe[] }) {
-  const [recipeName, setRecipeName] = useState("");
+function ChatTab({ token }: { token: string }) {
+  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -153,7 +254,7 @@ function ChatTab({ token, recipes }: { token: string; recipes: Recipe[] }) {
     try {
       await streamRequest(
         "/ai/chat",
-        { messages: newMessages, recipe_name: recipeName || null },
+        { messages: newMessages, recipe_name: selectedRecipe?.name ?? null },
         token,
         (chunk) => {
           assistantText += chunk;
@@ -173,16 +274,13 @@ function ChatTab({ token, recipes }: { token: string; recipes: Recipe[] }) {
 
   return (
     <div className="space-y-4">
-      <select
-        value={recipeName}
-        onChange={(e) => setRecipeName(e.target.value)}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-      >
-        <option value="">No specific recipe (general Q&A)</option>
-        {recipes.map((r) => (
-          <option key={r.id} value={r.name}>{r.name}</option>
-        ))}
-      </select>
+      <RecipePicker
+        token={token}
+        value={selectedRecipe}
+        onChange={setSelectedRecipe}
+        placeholder="Search for a recipe (or leave blank for general Q&amp;A)…"
+        allowNone
+      />
 
       <div className="rounded-xl border border-gray-200 bg-gray-50 h-80 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 && (
@@ -359,7 +457,7 @@ function DebriefTab({ token }: { token: string }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function CoachChat({ token, recipes }: { token: string; recipes: Recipe[] }) {
+export default function CoachChat({ token }: { token: string }) {
   const [mode, setMode] = useState<Mode>("precook");
 
   const tabs: { id: Mode; label: string; icon: string }[] = [
@@ -394,8 +492,8 @@ export default function CoachChat({ token, recipes }: { token: string; recipes: 
       </div>
 
       <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
-        {mode === "precook" && <PreCookTab token={token} recipes={recipes} />}
-        {mode === "chat" && <ChatTab token={token} recipes={recipes} />}
+        {mode === "precook" && <PreCookTab token={token} />}
+        {mode === "chat" && <ChatTab token={token} />}
         {mode === "debrief" && <DebriefTab token={token} />}
       </div>
     </div>

@@ -17,23 +17,11 @@ export default async function RecipesPage() {
   } = await supabase.auth.getSession();
   const token = session?.access_token ?? "";
 
-  const [recipesRes, recsRes] = await Promise.allSettled([
-    fetch(`${API_URL}/recipes`, { cache: "no-store" }),
-    fetch(`${API_URL}/recommendations`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    }),
-  ]);
-
-  const recipes =
-    recipesRes.status === "fulfilled" && recipesRes.value.ok
-      ? await recipesRes.value.json()
-      : [];
-
-  const recommendations =
-    recsRes.status === "fulfilled" && recsRes.value.ok
-      ? await recsRes.value.json()
-      : [];
+  const recsRes = await fetch(`${API_URL}/recommendations`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  const recommendations = recsRes.ok ? await recsRes.json() : [];
 
   return (
     <AppShell username={user.email ?? ""}>
@@ -44,7 +32,7 @@ export default async function RecipesPage() {
             Personalised picks and a full recipe library.
           </p>
         </div>
-        <RecipesClient recipes={recipes} recommendations={recommendations} token={token} />
+        <RecipesClient recommendations={recommendations} token={token} />
       </div>
     </AppShell>
   );
