@@ -65,10 +65,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final sessions = _data!['recent_sessions'] as List<dynamic>;
     final profile = _data!['profile'] as Map<String, dynamic>;
 
-    final level = xpData['level'] as int;
-    final currentXp = xpData['current_xp'] as int;
-    final xpForLevel = xpData['xp_for_current_level'] as int;
-    final xpForNext = xpData['xp_for_next_level'] as int;
+    final level = (xpData['level'] as int?) ?? 1;
+    final currentXp = (xpData['current_xp'] as int?) ?? 0;
+    final xpForLevel = (xpData['xp_for_current_level'] as int?) ?? 0;
+    final xpForNext = (xpData['xp_for_next_level'] as int?) ?? 100;
     final xpInLevel = currentXp - xpForLevel;
     final xpNeeded = xpForNext - xpForLevel;
     final progress =

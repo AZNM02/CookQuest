@@ -110,10 +110,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final stats = dash['stats'] as Map<String, dynamic>;
     final xpProgress = dash['xp_progress'] as Map<String, dynamic>;
 
-    final level = xpProgress['level'] as int;
-    final currentXp = xpProgress['current_xp'] as int;
-    final xpForLevel = xpProgress['xp_for_current_level'] as int;
-    final xpForNext = xpProgress['xp_for_next_level'] as int;
+    final level = (xpProgress['level'] as int?) ?? 1;
+    final currentXp = (xpProgress['current_xp'] as int?) ?? 0;
+    final xpForLevel = (xpProgress['xp_for_current_level'] as int?) ?? 0;
+    final xpForNext = (xpProgress['xp_for_next_level'] as int?) ?? 100;
     final xpInLevel = currentXp - xpForLevel;
     final xpNeeded = xpForNext - xpForLevel;
     final progress =

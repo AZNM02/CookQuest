@@ -162,7 +162,7 @@ class _TechniqueBar extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  technique['name'] as String,
+                  technique['name']?.toString() ?? '',
                   style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w600),
                 ),

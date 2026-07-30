@@ -76,7 +76,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
       );
       final incoming =
           (data['recipes'] as List).cast<Map<String, dynamic>>();
-      final total = data['total'] as int;
+      final total = (data['total'] as int?) ?? 0;
       if (mounted) {
         setState(() {
           _total = total;
@@ -116,7 +116,7 @@ class _RecipesScreenState extends State<RecipesScreen> {
       });
     }
     try {
-      await ApiService.toggleFavorite(recipe['id'] as int,
+      await ApiService.toggleFavorite((recipe['id'] as int?) ?? -1,
           favorite: nowFav);
     } catch (_) {
       setState(() {
@@ -506,7 +506,7 @@ class _RecipeCardState extends State<RecipeCard> {
                     true) ...[
                   const SizedBox(height: 6),
                   Text(
-                    r['description'] as String,
+                    r['description']?.toString() ?? '',
                     style: const TextStyle(
                         fontSize: 12,
                         color: Color(0xFF78716C)),
