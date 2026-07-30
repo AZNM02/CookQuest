@@ -17,18 +17,20 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _index = 0;
 
-  static const _screens = [
-    DashboardScreen(),
-    LogSessionScreen(),
-    SkillsScreen(),
-    RecipesScreen(),
-    ProfileScreen(),
-  ];
+  void _goToLog() => setState(() => _index = 1);
 
   @override
   Widget build(BuildContext context) {
+    final screens = [
+      DashboardScreen(onNavigateToLog: _goToLog),
+      const LogSessionScreen(),
+      const SkillsScreen(),
+      const RecipesScreen(),
+      const ProfileScreen(),
+    ];
+
     return Scaffold(
-      body: IndexedStack(index: _index, children: _screens),
+      body: IndexedStack(index: _index, children: screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
