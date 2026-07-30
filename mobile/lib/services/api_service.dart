@@ -109,4 +109,13 @@ class ApiService {
     if (res.statusCode != 200) throw Exception('Failed to load sessions');
     return jsonDecode(res.body) as List<dynamic>;
   }
+
+  static Future<Map<String, dynamic>> getCharts() async {
+    final res = await http.get(
+      Uri.parse('$apiUrl/stats/charts'),
+      headers: _headers,
+    );
+    if (res.statusCode != 200) throw Exception('Failed to load charts');
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
 }
