@@ -118,4 +118,22 @@ class ApiService {
     if (res.statusCode != 200) throw Exception('Failed to load charts');
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
+
+  static Future<List<dynamic>> getRecommendations() async {
+    final res = await http.get(
+      Uri.parse('$apiUrl/recommendations'),
+      headers: _headers,
+    );
+    if (res.statusCode != 200) return [];
+    return jsonDecode(res.body) as List<dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> importRecipes() async {
+    final res = await http.post(
+      Uri.parse('$apiUrl/recipes/import'),
+      headers: _headers,
+    );
+    if (res.statusCode != 200) throw Exception('Import failed');
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
 }
