@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   BarChart,
   Bar,
@@ -131,47 +132,156 @@ function heatColor(count: number) {
   return "bg-orange-600";
 }
 
+function toLocalIso(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const MONTHS_LONG = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
+
+function ordinal(n: number) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
+}
+
+function formatTooltip(dateStr: string, count: number) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const label = `${MONTHS_LONG[month - 1]} ${ordinal(day)}, ${year}`;
+  return count === 0
+    ? `No sessions on ${label}`
+    : `${count} session${count !== 1 ? "s" : ""} on ${label}`;
+}
+
 export function CookingHeatmap({ data }: { data: HeatmapPoint[] }) {
-  // Build a map of date → count for the last 52 weeks
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
+
   const countMap = Object.fromEntries(data.map((d) => [d.date, d.count]));
 
   const today = new Date();
-  const cells: { date: string; count: number }[] = [];
+  today.setHours(0, 0, 0, 0);
 
-  // Go back 364 days (52 weeks × 7)
-  for (let i = 363; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const iso = d.toISOString().slice(0, 10);
-    cells.push({ date: iso, count: countMap[iso] ?? 0 });
+  // Start on the Sunday at or before (today − 364 days), so every column = Sun–Sat
+  const rangeStart = new Date(today);
+  rangeStart.setDate(rangeStart.getDate() - 364);
+  rangeStart.setDate(rangeStart.getDate() - rangeStart.getDay());
+
+  // Pad the last column out to Saturday
+  const rangeEnd = new Date(today);
+  rangeEnd.setDate(rangeEnd.getDate() + (6 - today.getDay()));
+
+  type Cell = { date: string; count: number; isFuture: boolean };
+  const allCells: Cell[] = [];
+  const cursor = new Date(rangeStart);
+  while (cursor <= rangeEnd) {
+    const iso = toLocalIso(cursor);
+    allCells.push({ date: iso, count: countMap[iso] ?? 0, isFuture: cursor > today });
+    cursor.setDate(cursor.getDate() + 1);
   }
 
-  // Split into weeks (columns of 7 days)
-  const weeks: { date: string; count: number }[][] = [];
-  for (let i = 0; i < cells.length; i += 7) {
-    weeks.push(cells.slice(i, i + 7));
+  // 7-day columns, each starting on Sunday
+  const weeks: Cell[][] = [];
+  for (let i = 0; i < allCells.length; i += 7) {
+    weeks.push(allCells.slice(i, i + 7));
   }
 
+  // Month labels: skip the partial first month (rangeStart is usually mid-month),
+  // and enforce a minimum 3-column gap so adjacent labels never squish.
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const monthLabels: { label: string; col: number }[] = [];
+  let prevMonth = -1;
+  let prevLabelCol = -100;
+
+  weeks.forEach((week, wi) => {
+    const first = week.find((c) => !c.isFuture);
+    if (!first) return;
+    const month = parseInt(first.date.slice(5, 7), 10) - 1;
+    const dom   = parseInt(first.date.slice(8, 10), 10);
+    if (month === prevMonth) return;
+
+    if (wi === 0 && dom > 1) {
+      // First column is a partial month — skip its label so the next full month
+      // starts cleanly (avoids "Jul Aug" squished in the top-left corner).
+      prevMonth = month;
+    } else if (wi - prevLabelCol >= 3) {
+      monthLabels.push({ label: MONTHS[month], col: wi });
+      prevMonth = month;
+      prevLabelCol = wi;
+    } else {
+      prevMonth = month; // too close — track month change but skip the label
+    }
+  });
+
+  // w-3 = 12 px, gap-0.5 = 2 px → 14 px per column
+  const stride = 14;
+
+  // Row indices for Mon (1), Wed (3), Fri (5) — Sunday is index 0
+  const DAY_LABELS: (string | null)[] = [null, "Mon", null, "Wed", null, "Fri", null];
 
   return (
-    <div className="overflow-x-auto">
-      <div className="flex gap-0.5 min-w-max">
-        {weeks.map((week, wi) => (
-          <div key={wi} className="flex flex-col gap-0.5">
-            {week.map((cell) => (
-              <div
-                key={cell.date}
-                title={`${cell.date}: ${cell.count} session${cell.count !== 1 ? "s" : ""}`}
-                className={`w-3 h-3 rounded-sm ${heatColor(cell.count)}`}
-              />
-            ))}
+    <div className="flex gap-2">
+      {/* Fixed day-of-week labels (Mon/Wed/Fri), offset by the 14px month-label row above */}
+      <div className="flex flex-col shrink-0" style={{ marginTop: 16, gap: 2 }}>
+        {DAY_LABELS.map((label, i) => (
+          <div key={i} style={{ height: 12 }} className="flex items-center justify-end pr-1">
+            {label && <span className="text-xs text-gray-400 leading-none">{label}</span>}
           </div>
         ))}
       </div>
-      <div className="flex justify-between mt-1 text-xs text-gray-400">
-        {MONTHS.map((m) => <span key={m}>{m}</span>)}
+
+      {/* Scrollable month-label row + grid */}
+      <div className="overflow-x-auto flex-1 min-w-0">
+        {/* Month labels pinned to their column position */}
+        <div className="relative mb-0.5" style={{ height: 14, minWidth: weeks.length * stride }}>
+          {monthLabels.map(({ label, col }) => (
+            <span
+              key={`${label}-${col}`}
+              className="absolute text-xs text-gray-400 select-none"
+              style={{ left: col * stride }}
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+        {/* Grid */}
+        <div className="flex gap-0.5 min-w-max">
+          {weeks.map((week, wi) => (
+            <div key={wi} className="flex flex-col gap-0.5">
+              {week.map((cell, di) => (
+                <div
+                  key={di}
+                  onMouseEnter={(e) => {
+                    if (cell.isFuture) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setTooltip({
+                      text: formatTooltip(cell.date, cell.count),
+                      x: rect.left + rect.width / 2,
+                      y: rect.top - 6,
+                    });
+                  }}
+                  onMouseLeave={() => setTooltip(null)}
+                  className={`w-3 h-3 rounded-sm ${cell.isFuture ? "opacity-0 cursor-default" : "cursor-default " + heatColor(cell.count)}`}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
+
+      {/* Tooltip — rendered in fixed space so it's never clipped by the scroll container */}
+      {tooltip && (
+        <div
+          className="fixed z-50 pointer-events-none -translate-x-1/2 -translate-y-full"
+          style={{ left: tooltip.x, top: tooltip.y }}
+        >
+          <div className="bg-gray-900 text-white text-xs rounded px-2 py-1 shadow-lg whitespace-nowrap">
+            {tooltip.text}
+          </div>
+          <div className="mx-auto w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900" />
+        </div>
+      )}
     </div>
   );
 }
