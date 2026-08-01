@@ -3,6 +3,7 @@ import 'dashboard_screen.dart';
 import 'log_session_screen.dart';
 import 'skills_screen.dart';
 import 'recipes_screen.dart';
+import 'coach_screen.dart';
 import 'profile_screen.dart';
 
 const _orange = Color(0xFFF97316);
@@ -26,6 +27,7 @@ class _MainShellState extends State<MainShell> {
       const LogSessionScreen(),
       const SkillsScreen(),
       const RecipesScreen(),
+      const CoachScreen(),
       const ProfileScreen(),
     ];
 
@@ -55,6 +57,11 @@ class _MainShellState extends State<MainShell> {
             icon: Icon(Icons.menu_book_outlined),
             selectedIcon: Icon(Icons.menu_book),
             label: 'Recipes',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.smart_toy_outlined),
+            selectedIcon: Icon(Icons.smart_toy),
+            label: 'Coach',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
